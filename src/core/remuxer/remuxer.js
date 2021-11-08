@@ -93,6 +93,10 @@ export class Remuxer {
         }
     }
 
+    get MSE(){
+        return this.mse;
+    }
+
     init() {
         let tracks = [];
         this.codecs = [];
@@ -189,10 +193,6 @@ export class Remuxer {
                         if(this.tracks[qidx]) {
                             this.tracks[qidx].remux(chunk);
                         }
-                    }
-                } else {
-                    if (!this.initialized) {
-                        delete this.tracks[qidx];
                     }
                 }
             }

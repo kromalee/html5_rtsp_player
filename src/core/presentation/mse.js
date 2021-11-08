@@ -15,6 +15,8 @@ export class MSEBuffer {
         this.cleanResolvers = [];
         this.codec = codec;
         this.cleanRanges = [];
+        this.updatesToCleanup = 0;
+        this.firstMoveToBufferStart = true;
 
         Log.debug(`Use codec: ${codec}`);
 
@@ -62,6 +64,14 @@ export class MSEBuffer {
             } else {
                 // Log.debug(`buffered: ${this.sourceBuffer.buffered.end(0)}, current ${this.players[0].currentTime}`);
             }
+
+            // cleanup buffer after 100 updates
+            this.updatesToCleanup++;
+            if(this.updatesToCleanup > 100){
+                this.cleanupBuffer();
+                this.updatesToCleanup = 0;
+            }
+
             this.feedNext();
         });
 
@@ -85,6 +95,27 @@ export class MSEBuffer {
             this.feedNext();
         }
         // TODO: cleanup every hour for live streams
+    }
+
+    cleanupBuffer(){
+        if(this.sourceBuffer.buffered.length && !this.sourceBuffer.updating){
+            let currentPlayTime   = this.players[0].currentTime;
+            let startBuffered     = this.sourceBuffer.buffered.start(0);
+            let endBuffered       = this.sourceBuffer.buffered.end(0);
+            let bufferedDuration  = endBuffered - startBuffered;
+            let removeEnd = endBuffered - this.parent.bufferDuration;
+
+            if((removeEnd > 0) && (bufferedDuration > this.parent.bufferDuration) && (currentPlayTime > startBuffered) &&
+                (currentPlayTime > removeEnd)){
+                try {
+                    Log.debug("Remove media segments", startBuffered, removeEnd);
+                    this.sourceBuffer.remove(startBuffered, removeEnd);
+                }
+                catch (e){
+                    Log.warn("Failed to cleanup buffer");
+                }
+            }
+        }
     }
 
     destroy() {
@@ -126,7 +157,6 @@ export class MSEBuffer {
         // Log.debug("feed next ", this.sourceBuffer.updating);
         if (!this.sourceBuffer.updating && !this.cleaning && this.queue.length) {
             this.doAppend(this.queue.shift());
-            // TODO: if is live and current position > 1hr => clean all and restart
         }
     }
 
@@ -216,6 +246,13 @@ export class MSEBuffer {
         } else {
             try {
                 this.sourceBuffer.appendBuffer(data);
+                if (this.firstMoveToBufferStart && this.sourceBuffer.buffered.length) {
+                    this.players[0].currentTime = this.sourceBuffer.buffered.start(0);
+                    if (this.players[0].autoPlay) {
+                        this.players[0].start();
+                    }
+                    this.firstMoveToBufferStart = false;
+                }
             } catch (e) {
                 if (e.name === 'QuotaExceededError') {
                     Log.debug(`${this.codec} quota fail`);
@@ -277,6 +314,14 @@ export class MSE {
         this.mediaSource = new MediaSource();
         this.eventSource = new EventEmitter(this.mediaSource);
         this.reset();
+    }
+
+    set bufferDuration(buffDuration){
+        this.bufferDuration_ = buffDuration;
+    }
+
+    get bufferDuration(){
+        return this.bufferDuration_;
     }
 
     destroy() {

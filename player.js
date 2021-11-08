@@ -32,12 +32,20 @@ window.Streamedian = {
                 }
             ],
             errorHandler(e) {
-                if(opts.onerror) {
-                    opts.onerror(e);
+                if(opts.errorHandler) {
+                    opts.errorHandler(e);
                 } else {
                     alert(`Failed to start player: ${e.message}`);
                 }
             },
+            infoHandler(inf) {
+                if(opts.infoHandler) {
+                    opts.infoHandler(inf);
+                }
+            },
+            redirectNativeMediaErrors: opts.redirectNativeMediaErrors,
+            bufferDuration : opts.bufferDuration,
+
             queryCredentials(client) {
                 return new Promise((resolve, reject) => {
                     let c = prompt('input credentials in format user:password');

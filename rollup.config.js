@@ -39,13 +39,9 @@ const path = require('path');
 //
 // }
 export default {
-    entry: path.join(__dirname, 'streamedian.js'),
+    entry: path.join(__dirname, 'player.js'),
     targets: [
-        {
-            dest: path.join(__dirname, 'example/streamedian.min.js'),
-            format: 'iife',
-            moduleName: 'Streamedian'
-        }
+        {dest: path.join(__dirname, 'example/streamedian.min.js'), format: 'iife'}
     ],
     sourceMap: true,
     plugins: [

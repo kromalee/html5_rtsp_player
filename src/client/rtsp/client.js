@@ -32,7 +32,7 @@ export default class RTSPClient extends BaseClient {
         };
         this.sampleQueues={};
     }
-
+    
     static streamType() {
         return 'rtsp';
     }
@@ -428,7 +428,7 @@ export class RTSPClientSM extends StateMachine {
 
     sendSetup() {
         let streams=[];
-        let lastPromise = null;
+		let lastPromise = null;
 
         // TODO: select first video and first audio tracks
         for (let track_type of this.tracks) {

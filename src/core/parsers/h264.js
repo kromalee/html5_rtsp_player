@@ -66,6 +66,15 @@ export class H264Parser {
                 break;
             case NALU.SPS:
                 push = false;
+
+                if (!this.firstFound)  {
+                    if (!navigator.vendor.match(/apple/i)) {
+                        if (!navigator.platform.match(/linux/i)) {
+                            this.firstFound = true;
+                            push = true;
+                        }
+                    }
+                }
                 if(!this.track.sps) {
                     this.parseSPS(unit.getData().subarray(4));
                     if (!this.remuxer.readyToDecode && this.track.pps && this.track.sps) {

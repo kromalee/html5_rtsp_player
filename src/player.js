@@ -3,6 +3,7 @@ import {Url} from './core/util/url.js';
 import {Remuxer} from './core/remuxer/remuxer.js';
 import DEFAULT_CLIENT from './client/rtsp/client.js';
 import DEFAULT_TRANSPORT from './transport/websocket.js';
+import SMediaError from './media_error';
 
 const Log = getTagged('wsp');
 
@@ -65,7 +66,14 @@ export class WSPlayer {
             }
         };
         this.errorHandler = opts.errorHandler || null;
+        this.infoHandler = opts.infoHandler || null;
         this.queryCredentials = opts.queryCredentials || null;
+
+        this.bufferDuration_ = opts.bufferDuration || 120;
+        if(isNaN(this.bufferDuration_) || (this.bufferDuration_ <= 0)){
+            Log.warn("Expected number type for bufferDuration");
+            this.bufferDuration_ = 120;
+        }
 
         this.modules = {};
         for (let module of modules) {
@@ -80,7 +88,7 @@ export class WSPlayer {
                 Log.warn(`Client stream type ${client.streamType()} is incompatible with transport types [${transport.streamTypes().join(', ')}]. Skip`)
             }
         }
-
+        
         this.type = StreamType.RTSP;
         this.url = null;
         if (opts.url && opts.type) {
@@ -113,13 +121,39 @@ export class WSPlayer {
             this.client.stop();
         }, false);
 
+        this.player.addEventListener('seeking', ()=>{
+            if(this.player.buffered.length) {
+                let bStart = this.player.buffered.start(0);
+                let bEnd   = this.player.buffered.end(0);
+                let bDuration = bEnd - bStart;
+
+                if (bDuration > 0 && (this.player.currentTime < bStart || this.player.currentTime > bEnd)) {
+                    if(this.player.currentTime < bStart){
+                        this.player.currentTime = bStart;
+                    }
+                    else{
+                        this.player.currentTime = bEnd - 1;
+                    }
+                }
+            }
+        }, false);
+
         this.player.addEventListener('abort', () => {
             // disconnect the transport when the player is closed
             this.client.stop();
             this.transport.disconnect().then(() => {
                 this.client.destroy();
             });
-        }, false);
+        }, false);		
+
+        this.redirectNativeMediaErrors = opts.hasOwnProperty('redirectNativeMediaErrors') ?
+            opts.redirectNativeMediaErrors : true;
+
+        if(this.redirectNativeMediaErrors) {
+            this.player.addEventListener('error', () => {
+                this.error(this.player.error.code);
+            }, false);
+        }
     }
 
     // TODO: check native support
@@ -176,17 +210,25 @@ export class WSPlayer {
         try {
             this.endpoint = Url.parse(url);
         } catch (e) {
+            this.error(SMediaError.MEDIA_ERR_SRC_NOT_SUPPORTED);
             return;
         }
+
         this.url = url;
         let transport = this.modules[type].transport;
         this.transport = new transport.constructor(this.endpoint, this.type, transport.options);
-
+        this.transport.eventSource.addEventListener('error', (errorEvent)=>{
+            this.error(errorEvent.detail);
+        });
+        this.transport.eventSource.addEventListener('info', (infoEvent)=>{
+            this.info(infoEvent.detail)
+        });
 
         let lastType = this.type;
         this.type = (StreamType.isSupported(type)?type:false) || StreamType.fromMime(type);
         if (!this.type) {
-            throw new Error("Bad stream type");
+            this.error(SMediaError.MEDIA_ERR_SRC_NOT_SUPPORTED);
+            return;
         }
 
         if (lastType!=this.type || !this.client) {
@@ -194,7 +236,8 @@ export class WSPlayer {
                 await this.client.destroy();
             }
             let client = this.modules[type].client;
-            this.client = new client();
+            let opts = {errorHandler: this.errorHandler, flush: 200};
+            this.client = new client(opts);
         } else {
             this.client.reset();
         }
@@ -207,6 +250,7 @@ export class WSPlayer {
             this.remuxer = null;
         }
         this.remuxer = new Remuxer(this.player);
+        this.remuxer.MSE.bufferDuration = this.bufferDuration_;
         this.remuxer.attachClient(this.client);
 
         this.client.attachTransport(this.transport);
@@ -214,6 +258,39 @@ export class WSPlayer {
 
         if (this.player.autoplay) {
             this.start();
+        }
+    }
+
+    set bufferDuration(duration){
+        if(this.remuxer && this.remuxer.MSE) {
+            this.bufferDuration_ = duration;s
+            this.remuxer.MSE.bufferDuration = duration;
+        }
+    }
+
+    get bufferDuration(){
+        if(this.remuxer)
+            return this.remuxer.MSE.bufferDuration;
+        else
+            return undefined;
+    }
+
+    error(err){
+        if (err !== undefined) {
+            this.error_ = new SMediaError(err);
+            if (this.errorHandler){
+                Log.error(this.error_.message);
+                this.errorHandler(this.error_);
+            }
+        }
+        return this.error_;
+    }
+
+    info(inf){
+        if (inf !== undefined) {
+            if (this.infoHandler){
+                this.infoHandler(inf);
+            }
         }
     }
 

@@ -3,32 +3,20 @@
   "version": "1.8.3",
   "description": "HTML5 MSE RTSP player over websockets",
   "license": "Apache2",
-  "author": "Streamedian <streamedian.player@gmail.com> (http://streamedian.com/)",
-  "homepage": "https://streamedian.com/",
+  "author": "SpecForge <specforge@gmail.com> (http://specforge.com/)",
+  "homepage": "http://streamedian.com/",
   "keywords": [
     "html5",
     "rtsp",
     "mse",
     "streaming"
   ],
-  "contributors": [
-    {
-      "name": "Victor Grenke",
-      "email": "viktor.grenke@gmail.com",
-      "url": "https://streamedian.com/"
-    },
-    {
-      "name": "Igor Shakirov",
-      "email": "igor.shakirov@specforge.com",
-      "url": "https://specforge.com/"
-    }
-  ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Streamedian/html5_rtsp_player.git"
+    "url": "https://github.com/SpecForge/streamedian.git"
   },
   "bugs": {
-    "url": "https://github.com/Streamedian/html5_rtsp_player/issues",
+    "url": "https://github.com/SpecForge/streamedian/issues",
     "email": "specforge@gmail.com"
   },
   "devDependencies": {
@@ -42,7 +30,6 @@
     "rollup-plugin-uglify": "^2.0.1"
   },
   "dependencies": {
-    "babel-polyfill": "^6.26.0",
     "bp_event": "^1.1.2",
     "bp_logger": "^1.0.3",
     "bp_statemachine": "^1.0.13",

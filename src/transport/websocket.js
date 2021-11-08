@@ -2,9 +2,11 @@ import {getTagged} from '../deps/bp_logger.js';
 import {JSEncrypt} from '../deps/jsencrypt.js';
 import {BaseTransport} from "../core/base_transport.js";
 import {CPU_CORES} from "../core/util/browser.js";
+import SMediaError from "../media_error.js";
 
 const LOG_TAG = "transport:ws";
 const Log = getTagged(LOG_TAG);
+const LogI = getTagged("info");
 const WORKER_COUNT = CPU_CORES;
 
 export default class WebsocketTransport extends BaseTransport {
@@ -42,6 +44,13 @@ export default class WebsocketTransport extends BaseTransport {
             for (let i=0; i<this.workers; ++i) {
                 let proxy = new WebSocketProxy(this.socket_url, this.endpoint, this.stream_type);
 
+                proxy.set_info_handler((info)=>{
+                    this.eventSource.dispatchEvent('info', info);
+                });
+
+                proxy.set_error_handler((error)=>{
+                    this.eventSource.dispatchEvent('error', error);
+                });
                 proxy.set_disconnect_handler((e)=> {
                     this.eventSource.dispatchEvent('disconnected', {code: e.code, reason: e.reason});
                     // TODO: only reconnect on demand
@@ -106,7 +115,10 @@ class WSPProtocol {
     static get CMD_INIT() {return 'INIT';}
     static get CMD_JOIN() {return  'JOIN';}
     static get CMD_WRAP() {return  'WRAP';}
+    static get CMD_GET_INFO() {return 'GET_INFO';}
 
+    // custom close codes
+    static get WCC_INVALID_DOMAIN() {return 4000;}
 
     constructor(ver){
         this.ver = ver;
@@ -160,11 +172,17 @@ class WebSocketProxy {
         this.stream_type = stream_type;
         this.endpoint = endpoint;
         this.data_handler = ()=>{};
+        this.error_handler = ()=>{};
         this.disconnect_handler = ()=>{};
         this.builder = new WSPProtocol(WSPProtocol.V1_1);
         this.awaitingPromises = {};
         this.seq = 0;
         this.encryptor = new JSEncrypt();
+        this.info_handler = ()=>{};
+    }
+
+    set_error_handler(handler){
+        this.error_handler = handler;
     }
 
     set_data_handler(handler) {
@@ -173,6 +191,10 @@ class WebSocketProxy {
 
     set_disconnect_handler(handler) {
         this.disconnect_handler = handler;
+    }
+
+    set_info_handler(handler){
+        this.info_handler = handler;
     }
 
     close() {
@@ -194,7 +216,7 @@ class WebSocketProxy {
         });
     }
 
-    onDisconnect(){
+    onDisconnect(error){
         this.ctrlChannel.onclose=null;
         this.ctrlChannel.close();
         if (this.dataChannel) {
@@ -202,6 +224,12 @@ class WebSocketProxy {
             this.dataChannel.close();
         }
         this.disconnect_handler(this);
+        if(error.code === WSPProtocol.WCC_INVALID_DOMAIN){
+            let err = new SMediaError(SMediaError.MEDIA_ERR_TRANSPORT);
+            err.message = "Invalid Domain (credentials)";
+            Log.error("Invalid domain (credentials)");
+            this.error(err);
+        }
     }
 
     initDataChannel(channel_id) {
@@ -231,14 +259,62 @@ class WebSocketProxy {
                 resolve();
             };
             this.dataChannel.onerror = (e)=>{
-                Log.error(`[data] ${e.type}`);
                 this.dataChannel.close();
+                this.error(SMediaError.MEDIA_ERR_TRANSPORT);
             };
             this.dataChannel.onclose = (e)=>{
                 Log.error(`[data] ${e.type}. code: ${e.code}, reason: ${e.reason || 'unknown reason'}`);
                 this.onDisconnect(e);
             };
         });
+    }
+
+    error(err){
+        if (err !== undefined) {
+            this.error_ = new SMediaError(err);
+            if (this.error_handler){
+                this.error_handler(this.error_ );
+            }
+        }
+        return this.error_;
+    }
+
+    onProxyCommandResponse(res){
+        LogI.setLevel(4);
+
+        let command = res.data.command;
+        let jsonObj = JSON.parse(res.payload);
+
+        if (command === WSPProtocol.CMD_GET_INFO && jsonObj && jsonObj.info)
+        {
+            LogI.log("------------- Info ---------------------");
+
+            let infoObj = jsonObj.info;
+            let licenseInfo     = infoObj.license;
+            let expiresAt       = licenseInfo.expiresAt;
+            let requestedDomain = infoObj.requestedDomain;
+            let clients = infoObj.clients;
+
+            LogI.log("License expires at : ", expiresAt);
+            LogI.log("Requested domain   : ", requestedDomain);
+
+            if (clients) {
+                LogI.log("------------- Source list --------------");
+                for (let client in clients) {
+                    LogI.log("Client: ", client);
+                    if(clients[client]) {
+                        clients[client].forEach((src) => {
+                            LogI.log(" ", src.description, ":", src.url);
+                        });
+                    } else {
+                        LogI.log(" Client sources not found");
+                    }
+                }
+                this.info_handler(infoObj);
+            }
+
+            LogI.log("-----------------------------------------");
+        }
     }
 
     connect() {
@@ -257,12 +333,17 @@ class WebSocketProxy {
                 } else {
                     Object.assign(headers, {
                         host:  this.endpoint.host,
-                        port:  this.endpoint.port
+                        port:  this.endpoint.port,
+                        client: this.endpoint.client
                     })
                 }
-                let msg = this.builder.build(WSPProtocol.CMD_INIT, headers);
-                Log.debug(msg);
-                this.ctrlChannel.send(msg);
+                 let msgLicense = this.builder.build(WSPProtocol.CMD_GET_INFO, headers);
+                 Log.debug(msgLicense);
+                 this.ctrlChannel.send(msgLicense);
+
+                 let msg = this.builder.build(WSPProtocol.CMD_INIT, headers);
+                 Log.debug(msg);
+                 this.ctrlChannel.send(msg);
             };
 
             this.ctrlChannel.onmessage = (ev)=>{
@@ -271,6 +352,10 @@ class WebSocketProxy {
                 let res = WSPProtocol.parse(ev.data);
                 if (!res) {
                     return reject();
+                }
+                if (res.data && res.data.command && res.data.type && res.payload){
+                    this.onProxyCommandResponse(res);
+                    return;
                 }
 
                 if (res.code >= 300) {
@@ -299,6 +384,7 @@ class WebSocketProxy {
 
             this.ctrlChannel.onerror = (e)=>{
                 Log.error(`[ctrl] ${e.type}`);
+                this.error(SMediaError.MEDIA_ERR_TRANSPORT);
                 this.ctrlChannel.close();
             };
             this.ctrlChannel.onclose = (e)=>{
@@ -312,7 +398,8 @@ class WebSocketProxy {
         if (this.encryptionKey) {
             let crypted = this.encryptor.encrypt(msg);
             if (crypted === false) {
-                throw new Error("Encryption failed. Stopping")
+                this.error(SMediaError.MEDIA_ERR_ENCRYPTED);
+                return;
             }
             return crypted;
         }
@@ -322,9 +409,8 @@ class WebSocketProxy {
     send(payload) {
         if (this.ctrlChannel.readyState != WebSocket.OPEN) {
             this.close();
-            // .then(this.connect.bind(this));
-            // return;
-            throw new Error('disconnected');
+            this.error(SMediaError.MEDIA_ERR_TRANSPORT);
+            return;
         }
         // Log.debug(payload);
         let data = {

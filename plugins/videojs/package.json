@@ -1,15 +1,22 @@
 {
   "name": "videojs_streamedian_plugin",
-  "version": "1.0.1",
+  "version": "1.8.3",
   "description": "rtsp/hls plugin for videojs",
-  "main": "/dist/videojs-contrib-hlsjs.js",
+  "license": "Apache2",
+  "author": "SpecForge <specforge@gmail.com> (http://specforge.com/)",
+  "homepage": "http://streamedian.com/",
   "directories": {
     "example": "examples"
   },
   "dependencies": {
-    "video.js": "^7.2.0"
+    "video.js": "^7.2.0",
+    "bp_event": "^1.1.2",
+    "bp_logger": "^1.0.3",
+    "bp_statemachine": "^1.0.13",
+    "jsencrypt": "git+https://github.com/kreopt/jsencrypt.git"
   },
   "devDependencies": {
+    "babel-preset-es2015-rollup": "^3.0.0",
     "bp_logger": "^1.1.1",
     "rollup": "^0.33.0",
     "rollup-plugin-alias": "^1.2.0",

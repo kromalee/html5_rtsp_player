@@ -7,38 +7,21 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="sourcesNode"></div>
 <div>
-    <input  id="stream_url" value="rtsp://<your camera ip or URL>/path" size="36">
+    <label>URL</label>
+    <input  id="stream_url" value="rtsp://<your camera ip or URL>/path">
     <button id="set_new_url">Set</button>
 </div>
-<div>
-    <p style="color:#808080">Enter your rtsp link to the stream, for example: "rtsp://192.168.1.1:554/h264"</p>
+<div class="duration_container">
+    <label style="margin-right: 5px;">Buffer</label>
+    <input  type="range" min="10" max="200" id="buffer_duration">
+    <label id="buffer_value" style="margin-left: 5px;">10sec</label>
 </div>
 
-<div>
-    <input id="buffer_duration" type="range" min="10" max="200" style="width:40%;">
-    <span  id="buffer_value">120sec.</span>
-</div>
 
-<div>
-    <p style="color:#808080">Change buffer duration</p>
-</div>
-
-<video id="test_video" controls autoplay>
-    <!--<source src="rtsp://192.168.10.205:554/ch01.264" type="application/x-rtsp">-->
-</video>
-
-<div class="controls form">
-    <div>
-        Playback rate:&nbsp;
-        <input id="rate" class="input" type="range" min="0.5" max="5.0" value="1.0" step="0.5">
-        <output for="rate" id="rate_res">live</output>
-    </div>
-    <div>
-        <button id="to_end" class="btn btn-success">live</button>
-    </div>
-</div>
+<div id="test_video"> </div>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/clappr/latest/clappr.js"></script>
+<script type="text/javascript" src="streamedian.clappr.min.js"></script>
 
 <p><br>Have any suggestions to improve our player? <br>Feel free to leave comments or ideas email: streamedian.player@gmail.com</p>
 <p>View HTML5 RTSP video player log</p>
@@ -47,9 +30,10 @@
 <button class="btn btn-success" onclick="scrollset(pllogs, true)">scroll up</button>
 <button class="btn btn-success" onclick="scrollset(pllogs, false)">scroll down</button>
 <button id="scrollSetPl" class="btn btn-success" onclick="scrollswitch(pllogs)">Scroll off</button>
-<br/><br/>
+</br></br>
 
-<script src="streamedian.min.js"></script>
+</body>
+</html>
 
 <script>
     var scrollStatPl = true;
@@ -147,84 +131,55 @@
 </script>
 
 <script>
-    if (window.Streamedian) {
-        let errHandler = function(err){
-            alert(err.message);
-        };
-
-        let infHandler = function(inf) {
-            let sourcesNode = document.getElementById("sourcesNode");
-            let clients = inf.clients;
-            sourcesNode.innerHTML = "";
-
-            for (let client in clients) {
-                clients[client].forEach((sources) => {
-                    let nodeButton = document.createElement("button");
-                    nodeButton.setAttribute('data', sources.url + ' ' + client);
-                    nodeButton.appendChild(document.createTextNode(sources.description));
-                    nodeButton.onclick = (event)=> {
-                        setPlayerSource(event.target.getAttribute('data'));
-                    };
-                    sourcesNode.appendChild(nodeButton);
-                });
+    window.onload = function() {
+        var claprPlayer = new Clappr.Player({
+            parentId: '#test_video',
+            autoPlay : false,
+            plugins: {
+                playback: [ClapprLive]
+            },
+            /*sources:
+                [{
+                    mimeType:'application/x-rtsp',
+                }],*/
+            streamedian_player_config_:{
+                // socket:"wss://streamedian.com/ws/",
+                socket:"ws://127.0.0.1:8080/ws/",
+                bufferDuration: 120
+            },
+            mediacontrol: {
+                seekbar: "#E113D3",
+                buttons: "#66B2FF"
             }
-        };
+        });
 
-        var playerOptions = {
-            socket: "ws://localhost:8080/ws/",            redirectNativeMediaErrors : true,
-            bufferDuration: 30,
-            errorHandler: errHandler,
-            infoHandler: infHandler
-        };
-
-        var html5Player  = document.getElementById("test_video");
         var urlButton    = document.getElementById("set_new_url");
         var urlEdit      = document.getElementById("stream_url");
         var bufferRange  = document.getElementById("buffer_duration");
         var bufferValue  = document.getElementById("buffer_value");
 
-        var player = Streamedian.player('test_video', playerOptions);
-        var nativePlayer = document.getElementById('test_video');
-        var range = document.getElementById('rate');
-        var set_live = document.getElementById('to_end');
-        var range_out = document.getElementById('rate_res');
-
-        range.addEventListener('input', function () {
-            nativePlayer.playbackRate = range.value;
-            range_out.innerHTML = `x${range.value}`;
-        });
-        set_live.addEventListener('click', function () {
-            range.value = 1.0;
-            range_out.innerHTML = `live`;
-            nativePlayer.playbackRate = 1;
-            nativePlayer.currentTime = nativePlayer.buffered.end(0);
-        });
-
         var updateRangeControls = function(){
-            bufferRange.value     =  player.bufferDuration;
-            bufferValue.innerHTML = bufferRange.value + "sec.";
+            var player = window.StreamedianPlayer;
+            if(player){
+                bufferRange.value     =  player.bufferDuration;
+                bufferValue.innerHTML = bufferRange.value + "sec.";
+            }
         };
 
         bufferRange.addEventListener('input', function(){
-            var iValue = parseInt(this.value, 10);
-            player.bufferDuration = iValue;
+            var player = window.StreamedianPlayer;
             bufferValue.innerHTML = this.value + "sec.";
+            if(player){
+                var iValue = parseInt(this.value, 10);
+                claprPlayer._options.streamedian_player_config_.bufferDuration = iValue;
+                player.bufferDuration = iValue;
+            }
         });
-
-        bufferRange.innerHTML = player.bufferDuration + "sec.";
         updateRangeControls();
-
-        urlButton.onclick = ()=> {
-            setPlayerSource(urlEdit.value);
+        urlButton.onclick = ()=>{
+            var newSource   = urlEdit.value;
+            claprPlayer.load(newSource, "application/x-rtsp", true);
         };
-
-        function setPlayerSource(newSource) {
-            player.destroy();
-            player = null;
-            html5Player.src = newSource;
-            player = Streamedian.player("test_video", playerOptions);
-            updateRangeControls();
-        }
     }
 </script>
 </body>

@@ -47,7 +47,8 @@ export class SDPParser {
                             reject();
                             return false;
                         }
-                        success = success && this._parseOrigin(line);
+                        this._parseOrigin(line);
+                        success = true; // parsing is optional
                         break;
 
                     case 's':

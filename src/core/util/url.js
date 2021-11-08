@@ -2,6 +2,10 @@ export class Url {
     static parse(url) {
         let ret = {};
 
+        let urlparts = decodeURI(url).split(' ');
+        url = urlparts.shift();
+        ret.client = urlparts.join(' ');
+
         let regex = /^([^:]+):\/\/([^\/]+)(.*)$/;  //protocol, login, urlpath
         let result = regex.exec(url);
 

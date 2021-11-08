@@ -5,12 +5,12 @@ import uglify from 'rollup-plugin-uglify';
 const path = require('path');
 
 export default {
-    entry: path.join(__dirname, 'src/videojs.streamedian.js'),
+    entry: path.join(__dirname, 'src/streamedian.clappr.js'),
     targets: [
         {
-            dest: path.join(__dirname, 'example/streamedian.videojs.min.js'),
+            dest: path.join(__dirname, 'example/streamedian.clappr.min.js'),
             format: 'iife',
-            name: 'streamedian.videojs'
+            name: 'streamedian.clappr'
         }
     ],
     sourceMap: true,

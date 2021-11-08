@@ -11,7 +11,7 @@ export class BaseRequest {
     }
 
     before(fn) {
-        return Promise.resolve
+        return Promise.resolve;
     }
 }
 
