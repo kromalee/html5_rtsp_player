@@ -377,7 +377,7 @@ export class RTSPClientSM extends StateMachine {
             }
             if (parsed.code >= 300) {
                 Log.error(parsed.statusLine);
-                throw new RTSPError({msg: `RTSP error: ${parsed.code} ${parsed.statusLine}`, parsed: parsed});
+                this.parent.options.errorHandler(new RTSPError({msg: `RTSP error: ${parsed.code} ${parsed.statusLine}`, parsed: parsed}));
             }
             return parsed;
         } else {
@@ -389,7 +389,7 @@ export class RTSPClientSM extends StateMachine {
         this.reset();
         this.started = true;
         this.cSeq = 0;
-        return this.sendRequest('OPTIONS', '*', {});
+        return this.sendRequest('OPTIONS', this.url, {});
     }
 
     onOptions(data) {

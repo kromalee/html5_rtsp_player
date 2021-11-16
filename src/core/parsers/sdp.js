@@ -203,7 +203,7 @@ export class SDPParser {
                 media.mode = line.substr('a='.length);
                 break;
             case 'a=range':
-                matches = line.match(/^a=range:\s*([a-zA-Z-]+)=([0-9.]+|now)\s*-\s*([0-9.]*)$/);
+                matches = line.match(/^a=range:\s*([a-zA-Z-]+)=([0-9TZtz.]+|now)\s*-\s*([0-9TZtz.]*)$/);
                 media.range = [Number(matches[2] == "now" ? -1 : matches[2]), Number(matches[3]), matches[1]];
                 break;
             case 'a=control':
@@ -232,7 +232,7 @@ export class SDPParser {
 
             case 'a=fmtp':
                 matches = line.match(/^a=fmtp:(\d+) (.*)$/);
-                if (0 === matches.length) {
+                if (!matches || 0 === matches.length) {
                     Log.log('Could not parse \'fmtp\'  of \'a=\'');
                     return false;
                 }

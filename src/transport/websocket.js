@@ -51,10 +51,10 @@ export default class WebsocketTransport extends BaseTransport {
                 proxy.set_error_handler((error)=>{
                     this.eventSource.dispatchEvent('error', error);
                 });
-                proxy.set_disconnect_handler((e)=> {
-                    this.eventSource.dispatchEvent('disconnected', {code: e.code, reason: e.reason});
+                proxy.set_disconnect_handler((error)=> {
+                    this.eventSource.dispatchEvent('disconnected', {code: error.code, reason: error.reason});
                     // TODO: only reconnect on demand
-                    if ([1000, 1006, 1013, 1011].includes(e.code)) {
+                    if ([1000, 1006, 1013, 1011].includes(error.code)) {
                         setTimeout(()=> {
                             if (this.ready && this.ready.reject) {
                                 this.ready.reject();
@@ -223,7 +223,7 @@ class WebSocketProxy {
             this.dataChannel.onclose = null;
             this.dataChannel.close();
         }
-        this.disconnect_handler(this);
+        this.disconnect_handler(error);
         if(error.code === WSPProtocol.WCC_INVALID_DOMAIN){
             let err = new SMediaError(SMediaError.MEDIA_ERR_TRANSPORT);
             err.message = "Invalid Domain (credentials)";
