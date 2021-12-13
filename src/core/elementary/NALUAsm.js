@@ -30,7 +30,7 @@ export class NALUAsm {
         }
         let ret = [];
         while (nal_start_idx < data.byteLength) {
-            let size = data.getUint16(nal_start_idx);
+            let size = data.getUint16(nal_start_idx) - 1;
             nal_start_idx += 2;
             let header = NALUAsm.parseNALHeader(data.getInt8(nal_start_idx));
             nal_start_idx++;

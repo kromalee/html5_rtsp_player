@@ -199,6 +199,23 @@
             nativePlayer.playbackRate = 1;
             nativePlayer.currentTime = nativePlayer.buffered.end(0);
         });
+        
+        // Tab switching and window minimization processing 
+        // for browsers that use the chrome rendering engine.
+        if (!!window.chrome) {
+            document.addEventListener('visibilitychange', function() {
+                if(document.visibilityState === 'hidden') {
+                    nativePlayer.pause()
+                } else {
+                    nativePlayer.play();
+
+                    // Automatic jump to buffer end for view live video when returning to the web page. 
+                    setTimeout(function() {
+                        nativePlayer.currentTime = nativePlayer.buffered.end(0)
+                    }, 3000); // Delay for a few seconds is required for the player has time to update the timeline.
+                }
+            });
+        }
 
         var updateRangeControls = function(){
             bufferRange.value     =  player.bufferDuration;

@@ -47,6 +47,11 @@ export class RTSPStream {
         } else if (Url.isAbsolute(`${sessionBlock.control}${track.control}`)) {
             return `${sessionBlock.control}${track.control}`;
         } else if (Url.isAbsolute(`${this.client.contentBase}${track.control}`)) {
+            /* Check the end of the address for a separator */
+            if (this.client.contentBase[this.client.contentBase.length] !== '/') {
+                return `${this.client.contentBase}/${track.control}`;
+            } 
+
             /* Should probably check session level control before this */
             return `${this.client.contentBase}${track.control}`;
         }
@@ -119,7 +124,7 @@ export class RTSPStream {
             params.Session = session;
         }
         return this.client.sendRequest('SETUP', this.getSetupURL(this.track), params).then((_data) => {
-            this.session = _data.headers['session'];
+            this.session = _data.headers['session'].split(';');
             let transport = _data.headers['transport'];
             if (transport) {
                 let interleaved = transport.match(/interleaved=([0-9]+)-([0-9]+)/)[1];
@@ -127,7 +132,8 @@ export class RTSPStream {
                     this.rtpChannel = Number(interleaved);
                 }
             }
-            let sessionParamsChunks = this.session.split(';').slice(1);
+
+            let sessionParamsChunks = this.session.slice(1);
             let sessionParams = {};
             for (let chunk of sessionParamsChunks) {
                 let kv = chunk.split('=');
@@ -142,7 +148,7 @@ export class RTSPStream {
             }*/
             this.client.useRTPChannel(this.rtpChannel);
             this.startKeepAlive();
-            return {track: this.track, data: _data, session: this.session};
+            return {track: this.track, data: _data, session: this.session[0]};
         });
     }
 }

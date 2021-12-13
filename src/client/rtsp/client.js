@@ -436,7 +436,17 @@ export class RTSPClientSM extends StateMachine {
             // if (track_type=='audio') continue;
             // if (track_type=='video') continue;
             let track = this.sdp.getMediaBlock(track_type);
-            if (!PayloadType.string_map[track.rtpmap[track.fmt[0]].name]) continue;
+            // If payload type is defined in the specification then "rtpmap" may be not specified
+            if (!track.rtpmap[track.fmt[0]]) {
+                Log.warn(`Pyload type "${track.fmt[0]}" is not supported`);
+                continue;
+            }
+
+            // If payload type is dynamic then check it encoding name
+            if (!PayloadType.string_map[track.rtpmap[track.fmt[0]].name]) {
+                Log.warn(`Pyload type "${track.rtpmap[track.fmt[0]].name}" is not supported`);
+                continue;
+            }
 
             this.streams[track_type] = new RTSPStream(this, track);
             let setupPromise = this.streams[track_type].start(lastPromise);
@@ -461,27 +471,29 @@ export class RTSPClientSM extends StateMachine {
                     timescale: 0,
                     scaleFactor: 0
                 };
-                if (track.fmtp['sprop-parameter-sets']) {
-                    let sps_pps = track.fmtp['sprop-parameter-sets'].split(',');
-                    params = {
-                        sps:base64ToArrayBuffer(sps_pps[0]),
-                        pps:base64ToArrayBuffer(sps_pps[1])
-                    };
-                } else if (track.fmtp['config']) {
-                    let config = track.fmtp['config'];
-                    this.has_config = track.fmtp['cpresent']!='0';
-                    let generic = track.rtpmap[track.fmt[0]].name == 'MPEG4-GENERIC';
-                    if (generic) {
-                        params={config:
-                            AACParser.parseAudioSpecificConfig(hexToByteArray(config))
+                if (track.fmtp) {
+                    if (track.fmtp['sprop-parameter-sets']) {
+                        let sps_pps = track.fmtp['sprop-parameter-sets'].split(',');
+                        params = {
+                            sps:base64ToArrayBuffer(sps_pps[0]),
+                            pps:base64ToArrayBuffer(sps_pps[1])
                         };
-                        this.payParser.aacparser.setConfig(params.config);
-                    } else if (config) {
-                        // todo: parse audio specific config for mpeg4-generic
-                        params={config:
-                            AACParser.parseStreamMuxConfig(hexToByteArray(config))
-                        };
-                        this.payParser.aacparser.setConfig(params.config);
+                    } else if (track.fmtp['config']) {
+                        let config = track.fmtp['config'];
+                        this.has_config = track.fmtp['cpresent']!='0';
+                        let generic = track.rtpmap[track.fmt[0]].name == 'MPEG4-GENERIC';
+                        if (generic) {
+                            params={config:
+                                AACParser.parseAudioSpecificConfig(hexToByteArray(config))
+                            };
+                            this.payParser.aacparser.setConfig(params.config);
+                        } else if (config) {
+                            // todo: parse audio specific config for mpeg4-generic
+                            params={config:
+                                AACParser.parseStreamMuxConfig(hexToByteArray(config))
+                            };
+                            this.payParser.aacparser.setConfig(params.config);
+                        }
                     }
                 }
                 params.duration = this.sdp.sessionBlock.range?this.sdp.sessionBlock.range[1]-this.sdp.sessionBlock.range[0]:1;
