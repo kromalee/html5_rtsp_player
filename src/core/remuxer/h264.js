@@ -82,8 +82,8 @@ export class H264Remuxer extends BaseRemuxer {
     remux(nalu) {
         if (this.lastGopDTS < nalu.dts) {
             this.gop.sort(BaseRemuxer.dtsSortFunc);
-
-            if (this.gop.length > 1) {
+			
+			if (this.gop.length > 1) {
                 // Aggregate multi-slices which belong to one frame
                 const groupedGop = BaseRemuxer.groupByDts(this.gop);
                 this.gop = Object.values(groupedGop).map(group => {
@@ -95,7 +95,7 @@ export class H264Remuxer extends BaseRemuxer {
                     });
                 });
             }
-
+			
             for (let unit of this.gop) {
                 // if (this.firstUnit) {
                 //     unit.ntype = 5;//NALU.IDR;

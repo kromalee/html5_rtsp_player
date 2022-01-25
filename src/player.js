@@ -4,6 +4,7 @@ import {Remuxer} from './core/remuxer/remuxer.js';
 import DEFAULT_CLIENT from './client/rtsp/client.js';
 import DEFAULT_TRANSPORT from './transport/websocket.js';
 import SMediaError from './media_error';
+import { MediaDownloader } from './core/remuxer/downloader.js';
 
 const Log = getTagged('wsp');
 
@@ -67,6 +68,7 @@ export class WSPlayer {
         };
         this.errorHandler = opts.errorHandler || null;
         this.infoHandler = opts.infoHandler || null;
+        this.dataHandler = opts.dataHandler || null;
         this.queryCredentials = opts.queryCredentials || null;
 
         this.bufferDuration_ = opts.bufferDuration || 120;
@@ -74,6 +76,9 @@ export class WSPlayer {
             Log.warn("Expected number type for bufferDuration");
             this.bufferDuration_ = 120;
         }
+
+        this.continuousFileLength_ = opts.continuousFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
+        this.eventFileLength_ = opts.eventFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
 
         this.modules = {};
         for (let module of modules) {
@@ -253,6 +258,11 @@ export class WSPlayer {
         this.remuxer.MSE.bufferDuration = this.bufferDuration_;
         this.remuxer.attachClient(this.client);
 
+        this.remuxer.continuousRecording.setFileLength(this.continuousFileLength_);
+        this.remuxer.eventSource.addEventListener('mediadata', (data)=>{
+            this.mediadata(data)
+        });
+
         this.client.attachTransport(this.transport);
         this.client.setSource(this.endpoint);
 
@@ -263,7 +273,7 @@ export class WSPlayer {
 
     set bufferDuration(duration){
         if(this.remuxer && this.remuxer.MSE) {
-            this.bufferDuration_ = duration;s
+            this.bufferDuration_ = duration;
             this.remuxer.MSE.bufferDuration = duration;
         }
     }
@@ -294,6 +304,14 @@ export class WSPlayer {
         }
     }
 
+    mediadata(data){
+        if (data !== undefined) {
+            if (this.dataHandler){
+                this.dataHandler(data);
+            }
+        }
+    }
+
     start() {
         if (this.client) {
             this.client.start().catch((e)=>{
@@ -308,6 +326,40 @@ export class WSPlayer {
         if (this.client) {
             this.client.stop();
         }
+    }
+
+    continuousRecording(value) {
+        if (this.remuxer) {
+            this.remuxer.continuousRecording.record(value);
+        }
+    }
+
+    set continuousFileLength(milliseconds) {
+        if (this.remuxer && this.remuxer.continuousRecording) {
+            this.continuousFileLength_ = milliseconds;
+            this.remuxer.continuousRecording.setFileLength(milliseconds);
+        }
+    }
+
+    get continuousFileLength() {
+            return this.continuousFileLength_;
+    }
+
+    eventRecording(value) {
+        if (this.remuxer) {
+            this.remuxer.eventRecording.record(value);
+        }
+    }
+
+    set eventFileLength(milliseconds) {
+        if (this.remuxer && this.remuxer.eventRecording) {
+            this.eventFileLength_ = milliseconds;
+            this.remuxer.eventRecording.record(milliseconds);
+        }
+    }
+
+    get eventFileLength() {
+        return this.eventFileLength_;
     }
 
     async destroy() {

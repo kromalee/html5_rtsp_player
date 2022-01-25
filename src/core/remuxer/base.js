@@ -91,8 +91,8 @@ export class BaseRemuxer {
     static dtsSortFunc(a,b) {
         return (a.dts-b.dts);
     }
-
-    static groupByDts(gop) {
+	
+	static groupByDts(gop) {
         const groupBy = (xs, key) => {
             return xs.reduce((rv, x) => {
                 (rv[x[key]] = rv[x[key]] || []).push(x);
