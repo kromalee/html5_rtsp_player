@@ -51,6 +51,7 @@ window.Streamedian = {
             redirectNativeMediaErrors: opts.redirectNativeMediaErrors,
             bufferDuration : opts.bufferDuration,
             continuousFileLength: opts.continuousFileLength,
+            eventFileLength: opts.eventFileLength,
 
             queryCredentials(client) {
                 return new Promise((resolve, reject) => {

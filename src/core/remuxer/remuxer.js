@@ -5,7 +5,6 @@ import {AACRemuxer} from './aac.js';
 import {H264Remuxer} from './h264.js';
 import {MSE} from '../presentation/mse.js';
 import {PayloadType} from "../defs.js";
-import {MediaDownloader} from "./downloader.js";
 
 const LOG_TAG = "remuxer";
 const Log = getTagged(LOG_TAG);
@@ -31,9 +30,6 @@ export class Remuxer {
         this.eventSource = new EventEmitter();
         this.mseEventSource = new EventSourceWrapper(this.mse.eventSource);
         this.mse_ready = true;
-
-        this.continuousRecording = new MediaDownloader(this);
-        this.eventRecording = new MediaDownloader(this);
 
         this.reset();
 
@@ -126,8 +122,7 @@ export class Remuxer {
             initmse.push(this.initMSE(track_type, track.mp4track.codec));
         }
 
-        this.continuousRecording.init(this.tracks);
-        this.eventRecording.init(this.tracks);
+        this.eventSource.dispatchEvent('mp4initsegement', this.tracks);
         this.initialized = true;
         return Promise.all(initmse).then(()=>{
             //this.mse.play();
@@ -179,9 +174,9 @@ export class Remuxer {
                 let track = this.tracks[track_type];
                 let pay = track.getPayload();
                 if (pay && pay.byteLength) {
-                    this.mse.feed(track_type, [MP4.moof(track.seq, track.scaled(track.firstDTS), track.mp4track), MP4.mdat(pay)]);
-                    this.continuousRecording.pushData(track, pay);
-                    this.eventRecording.pushData(track, pay);
+                    let payload = [MP4.moof(track.seq, track.scaled(track.firstDTS), track.mp4track), MP4.mdat(pay)];
+                    this.mse.feed(track_type, payload);
+                    this.eventSource.dispatchEvent('mp4payload', payload);
                     track.flush();
                 }
             }

@@ -1,17 +1,23 @@
 import {MP4} from '../iso-bmff/mp4-generator.js';
 
 export class MediaDownloader {
+    static DEFAULT_FILE_LENGTH = 180000; /*download every 3 minutes*/
+
     constructor(parent) {
         this.parent = parent;
+        this.remuxer;
         this.header;
-        this.byteBuffer = new Uint8Array(0);
+        this.firstBuffer = new Uint8Array(0);
+        this.secondBuffer = new Uint8Array(0);
+        this.byteBuffer = this.firstBuffer;
+        this.isSwaped = false;
         this.isRecording = false;
 
-        this.DEFAULT_FILE_LENGTH = 180000; /*download every 3 minutes*/
         this.fileLength = this.DEFAULT_FILE_LENGTH;
     }
 
-    init(tracks) {
+    init(event) {
+        let tracks = event.detail;
         let tracks_list = [];
         for (let key in tracks) {
             let type = tracks[key].mp4track.type;
@@ -23,27 +29,28 @@ export class MediaDownloader {
         this.header = MP4.initSegment(tracks_list, tracks[1].duration*tracks[1].timescale, tracks[1].timescale)
     }
 
-    pushData(track, pay) {
-        this.setBuffer(MP4.moof(track.seq, track.scaled(track.firstDTS), track.mp4track));
-        this.setBuffer(MP4.mdat(pay));
+    pushData(event) {
+        if (this.isRecording) {
+            if (this.byteBuffer.length == 0) {
+                this.setBuffer(this.header);
+            }
+
+            this.setBuffer(event.detail[0]);
+            this.setBuffer(event.detail[1]);
+        }
     }
 
     record(recordvalue) {
         if (recordvalue) {
             if (!this.isRecording) {
-                this.setBuffer(this.header);
-                this.downloadInterval = setInterval(this.download.bind(this), this.fileLength);
+                this.flushInterval = setInterval(this.flush.bind(this), this.fileLength);
             }
         } else {
-            clearInterval(this.downloadInterval);
-            this.download();
+            clearInterval(this.flushInterval);
+            this.flush();
         }
 
         this.isRecording = recordvalue;
-    }
-
-    setFileLength(milliseconds) {
-        this.fileLength = milliseconds;
     }
 
     setBuffer(data) {
@@ -55,17 +62,43 @@ export class MediaDownloader {
         }
     }
 
+    swapBuffer() {
+        this.isSwaped = !this.isSwaped;
 
-    download() {
-        if (this.byteBuffer.length) {
-            this.parent.eventSource.dispatchEvent('mediadata', this.byteBuffer);
-            this.byteBuffer = new Uint8Array(0);
-            this.setBuffer(this.header);
+        if (this.isSwaped) {
+            this.byteBuffer = this.secondBuffer;
+            this.firstBuffer = new Uint8Array(0);
+        } else {
+            this.byteBuffer = this.firstBuffer;
+            this.secondBuffer = new Uint8Array(0);
+        }
+    }
+
+    flush() {
+        let byteBuffer = this.byteBuffer;
+        this.swapBuffer();
+        if (byteBuffer.length) {
+            this.parent.mediadata(byteBuffer);
+        }
+    }
+
+    attachSource(remuxer) {
+        this.remuxer = remuxer;
+        this.remuxer.eventSource.addEventListener('mp4initsegement', this.init.bind(this));
+        this.remuxer.eventSource.addEventListener('mp4payload', this.pushData.bind(this));
+    }
+
+    dettachSource() {
+        if (this.remuxer) {
+            this.remuxer.eventSource.removeEventListener('mp4initsegement');
+            this.remuxer.eventSource.removeEventListener('mp4payload');
+            this.remuxer = null;
         }
     }
 
     destroy() {
         this.record(false);
+        this.dettachSource();
     }
 }
 

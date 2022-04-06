@@ -20,9 +20,15 @@
 </div>
 
 <div>
-    <span style="color:#808080">Change file length</span>
-    <input id="file_length" type="range" min="10" max="200" style="width:40%;">
-    <p id="file_length_label">180sec.</p>
+    <span style="color:#808080">Change video file length of the continuous recording</span>
+    <input id="continuous_file_length" type="range" min="10000" max="200000" value="180000" step="1000" style="width:40%;">
+    <p id="continuous_file_length_label">180sec.</p>
+</div>
+
+<div>
+    <span style="color:#808080">Change video file length of the event recording</span>
+    <input id="event_file_length" type="range" min="10000" max="200000" value="180000" step="1000" style="width:40%;">
+    <p id="event_file_length_label">180sec.</p>
 </div>
 
 <div>
@@ -203,7 +209,7 @@ To activate key, please, use the activation application that is placed:
     
         var link = document.createElement('a');
         let dataHandler = function(data) {
-            let blob = new Blob([data.detail], {type: "application/mp4"});
+            let blob = new Blob([data], {type: "application/mp4"});
             link.href = window.URL.createObjectURL(blob);
             link.download = `${formatDate(new Date())}.mp4`;
             link.click();
@@ -225,6 +231,8 @@ To activate key, please, use the activation application that is placed:
             errorHandler: errHandler,
             infoHandler: infHandler,
             dataHandler: dataHandler,
+            continuousFileLength: 180000,
+            eventFileLength: 10000,
         };
 
         var html5Player  = document.getElementById("test_video");
@@ -234,8 +242,10 @@ To activate key, please, use the activation application that is placed:
         var bufferValue  = document.getElementById("buffer_value");
         var checkRecord  = document.getElementById("check_record");
         var eventRecording = document.getElementById("event_recording");
-        var fileLength  = document.getElementById("file_length");
-        var fileLengthLabel  = document.getElementById("file_length_label");
+        var continuousFileLength  = document.getElementById("continuous_file_length");
+        var continuousFileLengthLabel  = document.getElementById("continuous_file_length_label");
+        var eventFileLength  = document.getElementById("event_file_length");
+        var eventFileLengthLabel  = document.getElementById("event_file_length_label");
 
         var player = Streamedian.player('test_video', playerOptions);
         var nativePlayer = document.getElementById('test_video');
@@ -278,6 +288,12 @@ To activate key, please, use the activation application that is placed:
         var updateRangeControls = function(){
             bufferRange.value     =  player.bufferDuration;
             bufferValue.innerHTML = bufferRange.value + "sec.";
+
+            continuousFileLength.value = player.continuousRecording.fileLength;
+            continuousFileLengthLabel.innerText = `${continuousFileLength.value / 1000} sec.`;
+
+            eventFileLength.value = player.eventRecording.fileLength;
+            event_file_length_label.innerText = `${eventFileLength.value / 1000} sec.`;
         };
 
         bufferRange.addEventListener('input', function(){
@@ -290,12 +306,12 @@ To activate key, please, use the activation application that is placed:
         updateRangeControls();
 
         checkRecord.addEventListener('change', function(event) {
-            player.continuousRecording(event.target.checked);
+            player.continuousRecording.record(event.target.checked);
         });
 
         eventRecording.addEventListener('click', function(event) {
             let state = !event.target.classList.contains('btn-recording');
-            player.eventRecording(state);
+            player.eventRecording.record(state);
 
             if (state) {
                 event.target.innerText = 'Stop recording';
@@ -307,12 +323,16 @@ To activate key, please, use the activation application that is placed:
             event.target.classList.toggle('btn-recording');
         });
 
-        fileLength.addEventListener('input', function(event) {
-            let seconds = parseInt(event.target.value, 10);
-            let milliseconds = seconds * 1000;
-            player.continuousFileLength = milliseconds;
-            player.eventFileLength = milliseconds;
-            fileLengthLabel.innerText = `${seconds} sec.`;
+        continuousFileLength.addEventListener('input', function(event) {
+            let milliseconds = parseInt(event.target.value, 10);
+            player.continuousRecording.fileLength = milliseconds;
+            continuousFileLengthLabel.innerText = `${milliseconds / 1000} sec.`;
+        });
+
+        eventFileLength.addEventListener('input', function(event) {
+            let milliseconds = parseInt(event.target.value, 10);
+            player.eventRecording.fileLength = milliseconds;
+            eventFileLengthLabel.innerText = `${milliseconds / 1000} sec.`;
         });
 
         urlButton.onclick = ()=> {
@@ -320,15 +340,11 @@ To activate key, please, use the activation application that is placed:
         };
 
         function setPlayerSource(newSource) {
-            if (checkRecord.checked) {
-                playerOptions.continuousFileLength = parseInt(fileLength.value, 10) * 1000;
-            }
-
             player.destroy();
             player = null;
             html5Player.src = newSource;
             player = Streamedian.player("test_video", playerOptions);
-            player.continuousRecording(checkRecord.checked);
+            player.continuousRecording.record(checkRecord.checked);
             updateRangeControls();
 
             eventRecording.removeAttribute('disabled');

@@ -77,8 +77,10 @@ export class WSPlayer {
             this.bufferDuration_ = 120;
         }
 
-        this.continuousFileLength_ = opts.continuousFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
-        this.eventFileLength_ = opts.eventFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
+        this.continuousRecording = new MediaDownloader(this);
+        this.eventRecording = new MediaDownloader(this);
+        this.continuousRecording.fileLength = opts.continuousFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
+        this.eventRecording.fileLength = opts.eventFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
 
         this.modules = {};
         for (let module of modules) {
@@ -251,6 +253,8 @@ export class WSPlayer {
             this.client.queryCredentials = this.queryCredentials;
         }
         if (this.remuxer) {
+            this.continuousRecording.dettachSource();
+            this.eventRecording.dettachSource();
             this.remuxer.destroy();
             this.remuxer = null;
         }
@@ -258,10 +262,8 @@ export class WSPlayer {
         this.remuxer.MSE.bufferDuration = this.bufferDuration_;
         this.remuxer.attachClient(this.client);
 
-        this.remuxer.continuousRecording.setFileLength(this.continuousFileLength_);
-        this.remuxer.eventSource.addEventListener('mediadata', (data)=>{
-            this.mediadata(data)
-        });
+        this.continuousRecording.attachSource(this.remuxer);
+        this.eventRecording.attachSource(this.remuxer);
 
         this.client.attachTransport(this.transport);
         this.client.setSource(this.endpoint);
@@ -328,40 +330,6 @@ export class WSPlayer {
         }
     }
 
-    continuousRecording(value) {
-        if (this.remuxer) {
-            this.remuxer.continuousRecording.record(value);
-        }
-    }
-
-    set continuousFileLength(milliseconds) {
-        if (this.remuxer && this.remuxer.continuousRecording) {
-            this.continuousFileLength_ = milliseconds;
-            this.remuxer.continuousRecording.setFileLength(milliseconds);
-        }
-    }
-
-    get continuousFileLength() {
-            return this.continuousFileLength_;
-    }
-
-    eventRecording(value) {
-        if (this.remuxer) {
-            this.remuxer.eventRecording.record(value);
-        }
-    }
-
-    set eventFileLength(milliseconds) {
-        if (this.remuxer && this.remuxer.eventRecording) {
-            this.eventFileLength_ = milliseconds;
-            this.remuxer.eventRecording.record(milliseconds);
-        }
-    }
-
-    get eventFileLength() {
-        return this.eventFileLength_;
-    }
-
     async destroy() {
         if (this.transport) {
             if (this.client) {
@@ -376,6 +344,9 @@ export class WSPlayer {
             this.remuxer.destroy();
             this.remuxer = null;
         }
+
+        this.continuousRecording.destroy();
+        this.eventRecording.destroy();
     }
 
 }
