@@ -11,6 +11,7 @@ export class MediaDownloader {
         this.secondBuffer = new Uint8Array(0);
         this.byteBuffer = this.firstBuffer;
         this.isSwaped = false;
+        this.isPaused = false;
         this.isRecording = false;
 
         this.fileLength = this.DEFAULT_FILE_LENGTH;
@@ -53,6 +54,13 @@ export class MediaDownloader {
         this.isRecording = recordvalue;
     }
 
+    pause(value) {
+        if (this.isRecording || this.isPaused) { 
+            this.record(!value);
+            this.isPaused = value;
+        }
+    }
+
     setBuffer(data) {
         if (this.isRecording) {
             let tmp = new Uint8Array(this.byteBuffer.byteLength + data.byteLength);
@@ -77,7 +85,7 @@ export class MediaDownloader {
     flush() {
         let byteBuffer = this.byteBuffer;
         this.swapBuffer();
-        if (byteBuffer.length) {
+        if (this.header && byteBuffer.length > this.header.length) {
             this.parent.mediadata(byteBuffer);
         }
     }

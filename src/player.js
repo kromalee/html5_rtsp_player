@@ -119,6 +119,9 @@ export class WSPlayer {
         }
 
         this.player.addEventListener('play', ()=>{
+            this.continuousRecording.pause(false);
+            this.eventRecording.pause(false);
+
             if (!this.isPlaying()) {
                 this.client.start();
             }
@@ -126,6 +129,8 @@ export class WSPlayer {
 
         this.player.addEventListener('pause', ()=>{
             this.client.stop();
+            this.continuousRecording.pause(true);
+            this.eventRecording.pause(true);
         }, false);
 
         this.player.addEventListener('seeking', ()=>{
