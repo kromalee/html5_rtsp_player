@@ -1,7 +1,20 @@
 ## Overview
 
-Streamedian is a Javascript library which implements RTSP client for watching live streams in your browser
-that works directly on top of a standard HTML <video> element. 
+All modern browsers don't natively support playback of RTSP (Real Time Streaming Protocol) streams, 
+which is a common format for many popular IP cameras. 
+So for a long time if you wanted to display your RTSP IP camera stream on the web page, 
+you had to use intermediate transcoding servers, which would receive RTSP stream, 
+decode it and convert into format accepted by browser like HLS, MPEG-DASH or MP4. 
+This solution gets the job done, but it may suffer from big latency and poor performance due to the need to transcode and convert video with often compromised output video quality as the result.
+
+This custom HTML5 player, that works directly on top of a standard HTML5 ```<video>``` element, 
+was developed to implement different philosophy. Instead of decoding RTSP stream on the intermediate server
+it shifts this heavy task to the end user browser, where task of decoding of a single stream is insignificant.
+This means that your intermediate server no longer have to pull all the load, 
+you can share it between everyone watching your RTSP stream. As an additional advantage, 
+end user browser will always receive full quality unaltered picture from your IP camera.
+
+Streamedian is a Javascript library which implements RTSP client for watching live streams in your browser. 
 It requires support of HTML5 Video with Media Sources Extensions for playback. Also player relies on server-side websocket 
 proxy for retransmitting RTSP streams to browser.
 
@@ -13,7 +26,7 @@ Streamedian is written using ECMAScript 2015 standard.
 
 ## Live test stream
 
-Demo is available on http://streamedian.com/demo/free/
+Demo is available on https://streamedian.com/demonstration/
 
 Browser support (ES5 transpiled version):
 
