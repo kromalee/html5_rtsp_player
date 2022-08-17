@@ -4,7 +4,7 @@ import {Remuxer} from './core/remuxer/remuxer.js';
 import DEFAULT_CLIENT from './client/rtsp/client.js';
 import DEFAULT_TRANSPORT from './transport/websocket.js';
 import SMediaError from './media_error';
-import { MediaDownloader } from './core/remuxer/downloader.js';
+import { MediaRecorder } from './recorder.js';
 
 const Log = getTagged('wsp');
 
@@ -77,10 +77,10 @@ export class WSPlayer {
             this.bufferDuration_ = 120;
         }
 
-        this.continuousRecording = new MediaDownloader(this);
-        this.eventRecording = new MediaDownloader(this);
-        this.continuousRecording.fileLength = opts.continuousFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
-        this.eventRecording.fileLength = opts.eventFileLength || MediaDownloader.DEFAULT_FILE_LENGTH;
+        this.continuousRecording = new MediaRecorder(this);
+        this.eventRecording = new MediaRecorder(this);
+        this.continuousRecording.fileLength = opts.continuousFileLength || MediaRecorder.DEFAULT_FILE_LENGTH;
+        this.eventRecording.fileLength = opts.eventFileLength || MediaRecorder.DEFAULT_FILE_LENGTH;
 
         this.modules = {};
         for (let module of modules) {

@@ -1,6 +1,6 @@
-import {MP4} from '../iso-bmff/mp4-generator.js';
+import {MP4} from './core/iso-bmff/mp4-generator.js';
 
-export class MediaDownloader {
+export class MediaRecorder {
     static DEFAULT_FILE_LENGTH = 180000; /*download every 3 minutes*/
 
     constructor(parent) {
