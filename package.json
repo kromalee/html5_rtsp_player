@@ -32,20 +32,14 @@
     "email": "specforge@gmail.com"
   },
   "devDependencies": {
-    "babel-preset-es2015-rollup": "^3.0.0",
-    "rollup": "^0.33.2",
-    "rollup-plugin-alias": "^1.4.0",
-    "rollup-plugin-async": "^1.2.0",
-    "rollup-plugin-babel": "^2.7.1",
-    "rollup-plugin-buble": "^0.17.0",
-    "rollup-plugin-node-resolve": "^1.7.3",
-    "rollup-plugin-uglify": "^2.0.1"
+    "rollup": "^2.79.0",
+    "rollup-plugin-alias": "^2.2.0",
+    "rollup-plugin-buble": "^0.19.8"
   },
   "dependencies": {
-    "babel-polyfill": "^6.26.0",
     "bp_event": "^1.1.2",
     "bp_logger": "^1.0.3",
     "bp_statemachine": "^1.0.13",
-    "jsencrypt": "git+https://github.com/kreopt/jsencrypt.git"
+    "jsencrypt": "git+ssh://git@github.com/kreopt/jsencrypt.git#master"
   }
 }

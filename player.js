@@ -1,8 +1,8 @@
-import {LogLevel, getTagged, setDefaultLogLevel} from 'bp_logger';
-import * as streamedian from 'streamedian/player.js';
-import WebsocketTransport from 'streamedian/transport/websocket.js';
-import RTSPClient from 'streamedian/client/rtsp/client.js';
-import {isSafari} from "streamedian/core/util/browser.js";
+import { LogLevel, getTagged, setDefaultLogLevel } from './src/deps/bp_logger.js';
+import * as streamedian from './src/player.js';
+import WebsocketTransport from './src/transport/websocket.js';
+import RTSPClient from './src/client/rtsp/client.js';
+import { isSafari } from "./src/core/util/browser.js";
 
 
 setDefaultLogLevel(LogLevel.Error);
@@ -32,24 +32,24 @@ window.Streamedian = {
                 }
             ],
             errorHandler(e) {
-                if(opts.errorHandler) {
+                if (opts.errorHandler) {
                     opts.errorHandler(e);
                 } else {
                     alert(`Failed to start player: ${e.message}`);
                 }
             },
             infoHandler(inf) {
-                if(opts.infoHandler) {
+                if (opts.infoHandler) {
                     opts.infoHandler(inf);
                 }
             },
             dataHandler(data) {
-                if(opts.dataHandler) {
+                if (opts.dataHandler) {
                     opts.dataHandler(data);
                 }
             },
             redirectNativeMediaErrors: opts.redirectNativeMediaErrors,
-            bufferDuration : opts.bufferDuration,
+            bufferDuration: opts.bufferDuration,
             continuousFileLength: opts.continuousFileLength,
             eventFileLength: opts.eventFileLength,
 
