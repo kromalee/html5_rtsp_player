@@ -5,6 +5,10 @@
   "license": "Apache2",
   "author": "Streamedian <streamedian.player@gmail.com> (http://streamedian.com/)",
   "homepage": "https://streamedian.com/",
+  "scripts": {
+    "dev": "npx rollup -c --watch",
+    "build": "npx rollup -c"
+  },
   "keywords": [
     "html5",
     "rtsp",
