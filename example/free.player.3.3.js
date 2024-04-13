@@ -3072,7 +3072,7 @@
     }
 
     const LOG_TAG$2 = "rtsp:stream";
-    getTagged(LOG_TAG$2);
+    const Log$7 = getTagged(LOG_TAG$2);
 
     class RTSPStream {
 
@@ -3149,13 +3149,13 @@
         }
 
         stopKeepAlive() {
-            //clearInterval(this.keepaliveInterval);
+            clearInterval(this.keepaliveInterval);
         }
 
         startKeepAlive() {
-            /*this.keepaliveInterval = setInterval(() => {
+            this.keepaliveInterval = setInterval(() => {
                 this.sendKeepalive().catch((e) => {
-                    Log.error(e);
+                    Log$7.error(e);
                     if (e instanceof RTSPError) {
                         if (Number(e.data.parsed.code) == 501) {
                             return;
@@ -3163,7 +3163,7 @@
                     }
                     this.client.reconnect();
                 });
-            }, this.keepaliveTime);*/
+            }, this.keepaliveTime);
         }
 
         sendRequest(_cmd, _params = {}) {
@@ -3178,9 +3178,8 @@
         sendSetup(session = null) {
             this.state = RTSPClientSM.STATE_SETUP;
             this.rtpChannel = this.client.interleaveChannelIndex;
-            let interleavedChannels = this.client.interleaveChannelIndex++ + "-" + this.client.interleaveChannelIndex++;
             let params = {
-                'Transport': `RTP/AVP/TCP;unicast;interleaved=${interleavedChannels}`,
+                'Transport': this.make_transport_string(),
                 'Date': new Date().toUTCString()
             };
             if(session){
@@ -3190,9 +3189,9 @@
                 this.session = _data.headers['session'].split(';');
                 let transport = _data.headers['transport'];
                 if (transport) {
-                    let interleaved = transport.match(/interleaved=([0-9]+)-([0-9]+)/)[1];
+                    let interleaved = transport.match(/interleaved=([0-9]+)-([0-9]+)/);
                     if (interleaved) {
-                        this.rtpChannel = Number(interleaved);
+                        this.rtpChannel = Number(interleaved[1]);
                     }
                 }
 
@@ -3213,6 +3212,16 @@
                 this.startKeepAlive();
                 return {track: this.track, data: _data, session: this.session[0]};
             });
+        }
+
+        make_transport_string() {
+            let udp_port = this.client.udp_port;
+            if (udp_port) {
+                return `RTP/AVP;unicast;client_port=${udp_port}-${udp_port + 2}`;
+            }
+
+            let interleavedChannels = this.client.interleaveChannelIndex++ + "-" + this.client.interleaveChannelIndex++;
+            return `RTP/AVP/TCP;unicast;interleaved=${interleavedChannels}`;
         }
     }
 
@@ -4055,7 +4064,7 @@
     }
 
     const LOG_TAG$3 = "rtsp:session";
-    const Log$7 = getTagged(LOG_TAG$3);
+    const Log$8 = getTagged(LOG_TAG$3);
 
     class RTSPSession {
 
@@ -4127,7 +4136,7 @@
             if (this.state != RTSPClientSM.STATE_TEARDOWN) {
                 this.state = RTSPClientSM.STATE_TEARDOWN;
                 await this.sendRequest("TEARDOWN");
-                Log$7.log('RTSPClient: STATE_TEARDOWN');
+                Log$8.log('RTSPClient: STATE_TEARDOWN');
                 ///this.client.connection.disconnect();
                 // TODO: Notify client
             }
@@ -4135,7 +4144,7 @@
     }
 
     const LOG_TAG$4 = "client:rtsp";
-    const Log$8 = getTagged(LOG_TAG$4);
+    const Log$9 = getTagged(LOG_TAG$4);
 
     class RTSPClient extends BaseClient {
         constructor(options={flush: 200}) {
@@ -4226,13 +4235,14 @@
         static get STATE_OPTIONS() {return 1 << 1;}
         static get STATE_DESCRIBE () {return  1 << 2;}
         static get STATE_SWITCH () {return 1 << 3;}
-        static get STATE_SETUP() {return  1 << 4;}
-        static get STATE_STREAMS() {return 1 << 5;}
-        static get STATE_TEARDOWN() {return  1 << 6;}
-        static get STATE_PLAY() {return  1 << 7;}
-        static get STATE_PLAYING() {return  1 << 8;}
-        static get STATE_PAUSE() {return  1 << 9;}
-        static get STATE_PAUSED() {return  1 << 10;}
+        static get STATE_UDP () {return 1 << 4;}
+        static get STATE_SETUP() {return  1 << 5;}
+        static get STATE_STREAMS() {return 1 << 6;}
+        static get STATE_TEARDOWN() {return  1 << 7;}
+        static get STATE_PLAY() {return  1 << 8;}
+        static get STATE_PLAYING() {return  1 << 9;}
+        static get STATE_PAUSE() {return  1 << 10;}
+        static get STATE_PAUSED() {return  1 << 11;}
         // static STATE_PAUSED = 1 << 6;
 
         constructor(parent) {
@@ -4244,6 +4254,7 @@
             this.rtp_channels = new Set();
             this.sessions = {};
             this.ontracks = null;
+            this.udp_port = null;
 
             this.addState(RTSPClientSM.STATE_INITIAL,{
             }).addState(RTSPClientSM.STATE_OPTIONS, {
@@ -4255,6 +4266,9 @@
             }).addState(RTSPClientSM.STATE_SWITCH, {
                 activate: this.sendSwitch,
                 finishTransition: this.onSwitch
+            }).addState(RTSPClientSM.STATE_UDP, {
+                activate: this.change_rtp_transport,
+                finishTransition: this.on_change_rtp_transport
             }).addState(RTSPClientSM.STATE_SETUP, {
                 activate: this.sendSetup,
                 finishTransition: this.onSetup
@@ -4273,6 +4287,9 @@
                 .addTransition(RTSPClientSM.STATE_DESCRIBE, RTSPClientSM.STATE_SETUP)
                 .addTransition(RTSPClientSM.STATE_DESCRIBE, RTSPClientSM.STATE_SWITCH)
                 .addTransition(RTSPClientSM.STATE_SWITCH, RTSPClientSM.STATE_SETUP)
+                .addTransition(RTSPClientSM.STATE_DESCRIBE, RTSPClientSM.STATE_UDP)
+                .addTransition(RTSPClientSM.STATE_SWITCH, RTSPClientSM.STATE_UDP)
+                .addTransition(RTSPClientSM.STATE_UDP, RTSPClientSM.STATE_SETUP)
                 .addTransition(RTSPClientSM.STATE_SETUP, RTSPClientSM.STATE_STREAMS)
                 .addTransition(RTSPClientSM.STATE_TEARDOWN, RTSPClientSM.STATE_INITIAL)
                 // .addTransition(RTSPClientSM.STATE_STREAMS, RTSPClientSM.STATE_PAUSED)
@@ -4350,6 +4367,8 @@
         onData(data) {
             if (this.sdp.getVideoFormat() === 'h265') {
                 this.parent.eventSource.dispatchEvent('h265payload', data);
+            } else if (this.udp_port) {
+                this.onRTP({packet: data});
             } else {
                 let channel = data[1];
                 if (this.rtp_channels.has(channel)) {
@@ -4421,7 +4440,7 @@
         }
 
         parse(_data) {
-            Log$8.debug(_data.payload);
+            Log$9.debug(_data.payload);
             let d=_data.payload.split('\r\n\r\n');
             let parsed =  MessageBuilder.parse(d[0]);
             let len = Number(parsed.headers['content-length']);
@@ -4441,7 +4460,7 @@
                 'User-Agent': RTSPClientSM.USER_AGENT
             });
             if (this.authenticator) {
-                _params['Authorization'] = this.authenticator(_cmd);
+                _params['Authorization'] = this.authenticator(_cmd, _host);
             }
             return this.send(MessageBuilder.build(_cmd, _host, _params, _payload), _cmd).catch((e)=>{
                 if ((e instanceof AuthError) && !_params['Authorization'] ) {
@@ -4460,12 +4479,16 @@
                     this.onDisconnected();
                     throw e;
                 }
-                Log$8.debug(_data);
+                Log$9.debug(_data);
                 let response = await this.transport.send(_data);
                 let parsed = this.parse(response);
                 // TODO: parse status codes
+                if (parsed.code == 461) {
+                    return Promise.reject(parsed.code);
+                }
+
                 if (parsed.code == 401 /*&& !this.authenticator */) {
-                    Log$8.debug(parsed.headers['www-authenticate']);
+                    Log$9.debug(parsed.headers['www-authenticate']);
                     let auth = parsed.headers['www-authenticate'];
                     let method = auth.substring(0, auth.indexOf(' '));
                     auth = auth.substr(method.length+1);
@@ -4487,13 +4510,13 @@
                             let [k,v] = c.split('=');
                             parsedChunks[k] = v.substr(1, v.length-2);
                         }
-                        this.authenticator = (_method)=>{
+                        this.authenticator = (_method, _url)=>{
                             let ep = this.parent.endpoint;
                             let ha1 = md5(`${ep.user}:${parsedChunks.realm}:${ep.pass}`);
-                            let ha2 = md5(`${_method}:${this.url}`);
+                            let ha2 = md5(`${_method}:${_url}`);
                             let response = md5(`${ha1}:${parsedChunks.nonce}:${ha2}`);
                             let tail=''; // TODO: handle other params
-                            return `Digest username="${ep.user}", realm="${parsedChunks.realm}", nonce="${parsedChunks.nonce}", uri="${this.url}", response="${response}"${tail}`;
+                            return `Digest username="${ep.user}", realm="${parsedChunks.realm}", nonce="${parsedChunks.nonce}", uri="${_url}", response="${response}"${tail}`;
                         };
                     } else {
                         this.authenticator = ()=>{return `Basic ${btoa(this.parent.endpoint.auth)}`;};
@@ -4502,7 +4525,7 @@
                     throw new AuthError(parsed);
                 }
                 if (parsed.code >= 300) {
-                    Log$8.error(parsed.statusLine);
+                    Log$9.error(parsed.statusLine);
                     this.parent.options.errorHandler(new RTSPError({msg: `RTSP error: ${parsed.code} ${parsed.statusLine}`, parsed: parsed}));
                 }
                 return parsed;
@@ -4539,7 +4562,7 @@
             this.tracks = this.sdp.getMediaBlockList();
             this.rtpFactory = new RTPFactory(this.sdp);
 
-            Log$8.log('SDP contained ' + this.tracks.length + ' track(s). Calling SETUP for each.');
+            Log$9.log('SDP contained ' + this.tracks.length + ' track(s). Calling SETUP for each.');
 
             if (data.headers['session']) {
                 this.session = data.headers['session'];
@@ -4566,25 +4589,43 @@
             this.transitionTo(RTSPClientSM.STATE_SETUP);
         }
 
+        change_rtp_transport() {
+            let payload = `udp,${this.url},`;
+            if (this.authenticator) {
+                payload += this.authenticator(this.url, 'TEARDOWN');
+            }
+
+            return this.transport.socket().send(payload, 'SWITCH').promise.then((response)=>{
+                return response;
+            }).catch((reason)=>{
+                console.error(reason.msg);
+            });
+        }
+
+        on_change_rtp_transport(response) {
+            this.udp_port = response.payload;
+            this.transitionTo(RTSPClientSM.STATE_SETUP);
+        }
+
         sendSetup() {
             let streams=[];
     		let lastPromise = null;
 
             // TODO: select first video and first audio tracks
             for (let track_type of this.tracks) {
-                Log$8.log("setup track: "+track_type);
+                Log$9.log("setup track: "+track_type);
                 // if (track_type=='audio') continue;
                 // if (track_type=='video') continue;
                 let track = this.sdp.getMediaBlock(track_type);
                 // If payload type is defined in the specification then "rtpmap" may be not specified
                 if (!track.rtpmap[track.fmt[0]]) {
-                    Log$8.warn(`Pyload type "${track.fmt[0]}" is not supported`);
+                    Log$9.warn(`Pyload type "${track.fmt[0]}" is not supported`);
                     continue;
                 }
 
                 // If payload type is dynamic then check it encoding name
                 if (!PayloadType.string_map[track.rtpmap[track.fmt[0]].name]) {
-                    Log$8.warn(`Pyload type "${track.rtpmap[track.fmt[0]].name}" is not supported`);
+                    Log$9.warn(`Pyload type "${track.rtpmap[track.fmt[0]].name}" is not supported`);
                     continue;
                 }
 
@@ -4662,10 +4703,14 @@
                         this.ontracks(tracks);
                     }
                 })
-            }).catch((e)=>{
-                console.error(e);
-                this.stop();
-                this.reset();
+            }).catch((reason)=>{
+                if (reason == 461) {
+                    this.transitionTo(RTSPClientSM.STATE_UDP);
+                } else {
+                    console.error(reason);
+                    this.stop();
+                    this.reset();
+                }
             });
         }
 
@@ -9022,7 +9067,7 @@
     }
 
     const LOG_TAG$5 = "transport:ws";
-    const Log$9 = getTagged(LOG_TAG$5);
+    const Log$a = getTagged(LOG_TAG$5);
     const LogI = getTagged("info");
 
     class WebsocketTransport extends BaseTransport {
@@ -9135,9 +9180,11 @@
 
         // custom close codes
         static get WCC_INVALID_DOMAIN() {return 4000;}
+        static get WCC_DEMO_LIMIT_REACHED() {return 4002;}
 
         constructor(ver){
             this.ver = ver;
+            WSPProtocol.seq = 0;
         }
 
         build(cmd, data, payload=''){
@@ -9177,7 +9224,6 @@
             return null;
         }
     }
-    WSPProtocol.seq = 0;
 
     class WebSocketProxy {
         static get CHN_CONTROL() {return 'control';}
@@ -9214,17 +9260,17 @@
         }
 
         close() {
-            Log$9.log('closing connection');
+            Log$a.log('closing connection');
             return new Promise((resolve)=>{
                 this.ctrlChannel.onclose = ()=>{
                     if (this.dataChannel) {
                         this.dataChannel.onclose = ()=>{
-                            Log$9.log('closed');
+                            Log$a.log('closed');
                             resolve();
                         };
                         this.dataChannel.close();
                     } else {
-                        Log$9.log('closed');
+                        Log$a.log('closed');
                         resolve();
                     }
                 };
@@ -9243,7 +9289,10 @@
             if(error.code === WSPProtocol.WCC_INVALID_DOMAIN){
                 let err = new SMediaError(SMediaError.MEDIA_ERR_TRANSPORT);
                 err.message = "Invalid Domain (credentials)";
-                Log$9.error("Invalid domain (credentials)");
+                Log$a.error("Invalid domain (credentials)");
+                this.error(err);
+            } else if(error.code === WSPProtocol.WCC_DEMO_LIMIT_REACHED){
+                let err = new SMediaError(error.code);
                 this.error(err);
             }
         }
@@ -9256,11 +9305,11 @@
                     let msg = this.builder.build(WSPProtocol.CMD_JOIN, {
                         channel: channel_id
                     });
-                    Log$9.debug(msg);
+                    Log$a.debug(msg);
                     this.dataChannel.send(msg);
                 };
                 this.dataChannel.onmessage = (ev)=>{
-                    Log$9.debug(`[data]\r\n${ev.data}`);
+                    Log$a.debug(`[data]\r\n${ev.data}`);
                     let res = WSPProtocol.parse(ev.data);
                     if (!res) {
                         return reject();
@@ -9279,7 +9328,7 @@
                     this.error(SMediaError.MEDIA_ERR_TRANSPORT);
                 };
                 this.dataChannel.onclose = (e)=>{
-                    Log$9.error(`[data] ${e.type}. code: ${e.code}, reason: ${e.reason || 'unknown reason'}`);
+                    Log$a.error(`[data] ${e.type}. code: ${e.code}, reason: ${e.reason || 'unknown reason'}`);
                     this.onDisconnect(e);
                 };
             });
@@ -9350,20 +9399,21 @@
                         Object.assign(headers, {
                             host:  this.endpoint.host,
                             port:  this.endpoint.port,
-                            client: this.endpoint.client
+                            client: this.endpoint.client,
+                            restreamer: md5(this.endpoint.full),
                         });
                     }
                      let msgLicense = this.builder.build(WSPProtocol.CMD_GET_INFO, headers);
-                     Log$9.debug(msgLicense);
+                     Log$a.debug(msgLicense);
                      this.ctrlChannel.send(msgLicense);
 
                      let msg = this.builder.build(WSPProtocol.CMD_INIT, headers);
-                     Log$9.debug(msg);
+                     Log$a.debug(msg);
                      this.ctrlChannel.send(msg);
                 };
 
                 this.ctrlChannel.onmessage = (ev)=>{
-                    Log$9.debug(`[ctrl]\r\n${ev.data}`);
+                    Log$a.debug(`[ctrl]\r\n${ev.data}`);
 
                     let res = WSPProtocol.parse(ev.data);
                     if (!res) {
@@ -9375,12 +9425,12 @@
                     }
 
                     if (res.code >= 300) {
-                        Log$9.error(`[ctrl]\r\n${res.code}: ${res.msg}`);
+                        Log$a.error(`[ctrl]\r\n${res.code}: ${res.msg}`);
                         return reject();
                     }
                     this.ctrlChannel.onmessage = (e)=> {
                         let res = WSPProtocol.parse(e.data);
-                        Log$9.debug(`[ctrl]\r\n${e.data}`);
+                        Log$a.debug(`[ctrl]\r\n${e.data}`);
                         if (res.data.seq in this.awaitingPromises) {
                             if (res.code < 300) {
                                 this.awaitingPromises[res.data.seq].resolve(res);
@@ -9399,12 +9449,12 @@
                 };
 
                 this.ctrlChannel.onerror = (e)=>{
-                    Log$9.error(`[ctrl] ${e.type}`);
+                    Log$a.error(`[ctrl] ${e.type}`);
                     this.error(SMediaError.MEDIA_ERR_TRANSPORT);
                     this.ctrlChannel.close();
                 };
                 this.ctrlChannel.onclose = (e)=>{
-                    Log$9.error(`[ctrl] ${e.type}. code: ${e.code} ${e.reason || 'unknown reason'}`);
+                    Log$a.error(`[ctrl] ${e.type}. code: ${e.code} ${e.reason || 'unknown reason'}`);
                     this.onDisconnect(e);
                 };
             });
@@ -9438,7 +9488,7 @@
                 promise: new Promise((resolve, reject)=>{
                     this.awaitingPromises[data.seq] = {resolve, reject};
                     let msg = this.builder.build(cmd || WSPProtocol.CMD_WRAP, data, payload);
-                    Log$9.debug(msg);
+                    Log$a.debug(msg);
                     this.ctrlChannel.send(this.encrypt(msg));
                 })};
         }
@@ -9562,6 +9612,7 @@
     class H265Decoder {
         constructor(canvas) {
             this.canvas = canvas;
+            this.canvasHandler = new CanvasHandler(this.canvas);
             this.remuxer;
             this.decoder;
         }
@@ -9629,36 +9680,97 @@
         }
 
         displayImage(image) {    
-            var w = image.get_width();
-            var h = image.get_height();
-            if (w != this.canvas.width || h != this.canvas.height || !this.image_data) {
-                this.canvas.width = w;
-                this.canvas.height = h;
+            if (!this.image_data) {
+                let w = image.get_width();
+                let h = image.get_height();
                 this.image_data = this.ctx.createImageData(w, h);
-                var image_data = this.image_data.data;
-                for (var i=0; i<w*h; i++) {
+                let image_data = this.image_data.data;
+                for (let i=0; i<w*h; i++) {
                     image_data[i*4+3] = 255;
                 }
             }
         
-            var that = this;
+            let that = this;
             image.display(this.image_data, function(display_image_data) {
                 if (window.requestAnimationFrame) {
                     that.pending_image_data = display_image_data;
                     window.requestAnimationFrame(function() {
                         if (that.pending_image_data) {
-                            that.ctx.putImageData(that.pending_image_data, 0, 0);
+                            that.canvasHandler.draw(that.pending_image_data);
                             that.pending_image_data = null;
                         }
                     });
                 } else {
-                    that.ctx.putImageData(display_image_data, 0, 0);
+                    that.canvasHandler.draw(display_image_data);
                 }
             });
         }
     }
 
-    const Log$a = getTagged('wsp');
+    class CanvasHandler {
+        constructor(canvas) {
+            this.canvas = canvas;
+            this.ctx = this.canvas.getContext("2d");
+            this.auxiliary_canvas = document.createElement("canvas");
+            this.auxiliary_ctx = this.auxiliary_canvas.getContext("2d");
+            this.eventSource = new EventEmitter();
+        }
+
+        draw(imageData) {
+            let shouldCanvasResize = this.canvas.getAttribute("resize") === "true";
+
+            this.trueSizeCheck(imageData);
+
+            if (shouldCanvasResize) {
+                this.drawByImageSize(imageData);
+            } else {
+                this.drawByCanvasSize(imageData);
+            }
+        }
+
+        drawByCanvasSize(imageData) {
+            this.canvasResize(imageData.width, imageData.height, this.auxiliary_canvas);
+            this.auxiliary_ctx.putImageData(imageData, 0, 0);
+
+            this.restoreCanvasSize(this.canvas);
+
+            this.ctx.drawImage(this.auxiliary_canvas, 0, 0, this.canvas.width, this.canvas.height);
+        }
+
+        drawByImageSize(imageData) {
+            this.canvasResize(imageData.width, imageData.height, this.canvas);
+            this.ctx.putImageData(imageData, 0, 0);
+        }
+
+        canvasResize(width, height, canvas) {
+            if (width != canvas.width || height != canvas.height) {
+                canvas.setAttribute("width", width);
+                canvas.setAttribute("height", height);
+            }
+        }
+
+        restoreCanvasSize(canvas) {
+            let resolution = canvas.getAttribute("resolution");
+
+            if (resolution) {
+                let size = resolution.split('x');
+                this.canvasResize(size[0], size[1], canvas);
+            }
+        }
+
+        trueSizeCheck(imageData) {
+            if (this.trueSize === undefined) {
+                this.trueSize = {
+                    "width": imageData.width,
+                    "height": imageData.height,
+                };
+
+                this.eventSource.dispatchEvent("trueSize", this.trueSize);
+            }
+        }
+    }
+
+    const Log$b = getTagged('wsp');
 
     class StreamType {
         static get HLS() {return 'hls';}
@@ -9728,11 +9840,12 @@
             this.infoHandler = opts.infoHandler || null;
             this.dataHandler = opts.dataHandler || null;
             this.videoFormatHandler = opts.videoFormatHandler || null;
+            this.trueSizeHandler = opts.trueSizeHandler || null;
             this.queryCredentials = opts.queryCredentials || null;
 
             this.bufferDuration_ = opts.bufferDuration || 120;
             if(isNaN(this.bufferDuration_) || (this.bufferDuration_ <= 0)){
-                Log$a.warn("Expected number type for bufferDuration");
+                Log$b.warn("Expected number type for bufferDuration");
                 this.bufferDuration_ = 120;
             }
 
@@ -9751,7 +9864,7 @@
                         transport: transport
                     };
                 } else {
-                    Log$a.warn(`Client stream type ${client.streamType()} is incompatible with transport types [${transport.streamTypes().join(', ')}]. Skip`);
+                    Log$b.warn(`Client stream type ${client.streamType()} is incompatible with transport types [${transport.streamTypes().join(', ')}]. Skip`);
                 }
             }
             
@@ -9928,6 +10041,9 @@
 
             this.h265Decoder = new H265Decoder(this.canvas);
             this.h265Decoder.attachSource(this.client);
+            this.h265Decoder.canvasHandler.eventSource.addEventListener("trueSize", (event)=>{
+                this.truesizeCallback(event.detail);
+            });
 
             this.continuousRecording.attachSource(this.remuxer);
             this.eventRecording.attachSource(this.remuxer);
@@ -9961,7 +10077,7 @@
             if (err !== undefined) {
                 this.error_ = new SMediaError(err);
                 if (this.errorHandler){
-                    Log$a.error(this.error_.message);
+                    Log$b.error(this.error_.message);
                     this.errorHandler(this.error_);
                 }
             }
@@ -9983,6 +10099,12 @@
                 }
             }
         }    
+
+        truesizeCallback(size) {
+            if (this.trueSizeHandler) {
+                this.trueSizeHandler(size);
+            }
+        }
 
         mediadata(data, prefix){
             if (data !== undefined) {
@@ -10075,6 +10197,11 @@
                 videoFormatHandler(format) {
                     if(opts.videoFormatHandler) {
                         opts.videoFormatHandler(format);
+                    }
+                },
+                trueSizeHandler(size) {
+                    if(opts.trueSizeHandler) {
+                        opts.trueSizeHandler(size);
                     }
                 },
 

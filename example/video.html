@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+  <script src="/plugs/streamedian/free.player.3.1.js"></script>
+  <style>
+    *{
+      margin: 0;
+      padding: 0;
+    }
+    html,body{
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+<video id="video"  muted autoplay style="width: 100%;height: 100%"></video>
+<script>
+
+  window.onload = function (){
+    var url = location.search; //获取url中"?"符后的字串
+
+    var pageParams = {}
+    if (url.length > 0) { //判断是否携带参数
+      if (url.indexOf('?') != -1) {
+        let str = url.substr(url.indexOf('?') + 1);
+        let strs = str.split('&');
+        for (let i = 0; i < strs.length; i++) {
+          pageParams[strs[i].split('=')[0]] = decodeURI(strs[i].split('=')[1]);
+        }
+      }
+      console.log(pageParams);
+    }
+    // return params;
+    console.log('----------------------')
+    console.log("window.Streamedian", window.Streamedian)
+
+    function loadPlayer() {
+      // 先清除定时器
+      if (window.Streamedian && pageParams.rtspUrl) {
+        //如果本地是https则 这里取wss 否则取ws
+        var playerOptions = {
+          keepAliveOff: pageParams.keepAliveOff === "true",
+          socket: pageParams.socketUrl,
+          redirectNativeMediaErrors: true,
+          bufferDuration: 30,
+          errorHandler: function (e) {
+            console.error("视频错误", e)
+          },
+          // infoHandler: infHandler,
+          // dataHandler: dataHandler,
+          continuousFileLength: 0,
+          eventFileLength: 0
+          // videoFormatHandler: function (format) {
+          //   this.codec = format
+          //   this.$nextTick(function () {
+          //     if (format === 'h265') {
+          //       this.calcCanvasElementScale()
+          //       this.resizeObserver.observe(this.$refs['canvas-dom-container'])
+          //     } else {
+          //       this.resizeObserver.unobserve(this.$refs['canvas-dom-container'])
+          //     }
+          //   }.bind(this))
+          // }.bind(this),
+          // canvas: this.$refs['canvas-dom']
+        };
+        var dom = document.querySelector("#video");
+        if (dom) {
+          dom.src = decodeURIComponent(pageParams.rtspUrl);
+          console.log(
+            '%cRTSP视频直播创建',
+            'color: white;background:orange',
+            decodeURIComponent(pageParams.rtspUrl)
+          );
+          Streamedian.player(
+            dom,
+            playerOptions
+          );
+          var nativePlayer = document.querySelector('video');
+          nativePlayer.addEventListener("progress", function () {
+            if (nativePlayer) {
+              let end = nativePlayer.buffered.length > 0 ? nativePlayer.buffered.end(0) : 0;
+              let delta = end - nativePlayer.currentTime;
+
+              if (delta > 10 || delta < 0) {
+                nativePlayer.currentTime = end;
+                console.log('------------ 跳帧:' + delta + ' ------------');
+                return;
+              }
+
+              if (delta > 1) {
+                nativePlayer.playbackRate = 1.1;
+                console.log('------------ 追帧:' + delta + ' ------------');
+              } else {
+                nativePlayer.playbackRate = 1;
+              }
+            }
+          });
+
+        }
+      }
+    }
+
+    if(pageParams.rtspUrl&&pageParams.socketUrl){
+      loadPlayer()
+    }
+  }
+
+</script>
+</body>
+</html>
